@@ -1,18 +1,26 @@
+const { Pool } = require('pg');
 const express = require('express');
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// This allows the server to parse JSON data sent to it
-app.use(express.json());
-
-// This is your "Listener" route
-app.post('/incoming-messages', (req, res) => {
-    console.log("Message received:", req.body);
-    
-    // Always send a 200 status back so the sender knows you got it
-    res.status(200).send('Message received!');
+// Use the Database URL from Render environment variables
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false } // Required for cloud connections
 });
 
-app.listen(PORT, () => {
-    console.log(`Server is running and listening on port ${PORT}`);
+app.use(express.json());
+
+app.post('/incoming-messages', async (req, res) => {
+    const { device, message } = req.body;
+
+    try {
+        const query = 'INSERT INTO printer_logs (device, message, created_at) VALUES ($1, $2, NOW())';
+        await pool.query(query, [device, message]);
+        
+        console.log("Logged to Postgres:", device);
+        res.status(200).send('Message Saved to Database!');
+    } catch (err) {
+        console.error(err);
+        res.status(500).send('Database Error');
+    }
 });
